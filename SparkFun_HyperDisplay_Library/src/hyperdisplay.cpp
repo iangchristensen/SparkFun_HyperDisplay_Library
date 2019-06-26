@@ -873,7 +873,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			character_info->xLoc = hyperdisplayDefaultXloc;
 			character_info->yLoc = hyperdisplayDefaultYloc;
 
-			character_info->xDim = 9;
+			character_info->xDim = 8;
 			character_info->yDim = 17;
 
 			// Figure out if the character should cause a newline
@@ -898,14 +898,17 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			}
 
 			// Load up the character data and fill in coordinate data
-			uint8_t values[16];							// Holds the 8 bytes for the character
-			uint16_t offset = 10 + 9 * (character - 0);
+			uint8_t values[8];							// Holds the 8 bytes for the character
+			// The first number makes it start after the first row, which contains definitions
+			// The second number is the width of the height of the character
+			// The last number is the starting ASCII character
+			uint16_t offset = 6 + 8 * (character - 32);
 			character_info->numPixels = 0;
 			uint16_t n = 0;
-			for(uint8_t indi = 0; indi < 16; indi++)
+			for(uint8_t indi = 0; indi < 8; indi++)
 			{
 				values[indi] = pgm_read_byte(font8x16 + offset + indi);
-				for(uint8_t indj = 0; indj < 9; indj++)
+				for(uint8_t indj = 0; indj < 17; indj++)
 				{
 					if(values[indi] & (0x01 << indj))
 					{
