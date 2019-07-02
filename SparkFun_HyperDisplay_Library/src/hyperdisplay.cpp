@@ -9,6 +9,7 @@ header file: hyperdisplay.h
 
 wind_info_t hyperdisplayDefaultWindow;		// This window is used by default so that the user does not have to worry about windows if they don't want to
 char_info_t hyperdisplayDefaultCharacter;	// The default character to use
+char_info_t hyperdisplayAlternativeCharacter;
 
 #if HYPERDISPLAY_USE_PRINT
     #if HYPERDISPLAY_INCLUDE_DEFAULT_FONT   
@@ -16,11 +17,10 @@ char_info_t hyperdisplayDefaultCharacter;	// The default character to use
 		hd_font_extent_t hyperdisplayDefaultYloc[HYPERDISPLAY_DEFAULT_FONT_WIDTH*HYPERDISPLAY_DEFAULT_FONT_HEIGHT];
 	#endif
 	#if HYPERDISPLAY_INCLUDE_ALTERNATIVE_FONT   
-		hd_font_extent_t hyperdisplayDefaultXloc[HYPERDISPLAY_ALTERNATIVE_FONT_WIDTH*HYPERDISPLAY_ALTERNATIVE_FONT_HEIGHT];
-		hd_font_extent_t hyperdisplayDefaultYloc[HYPERDISPLAY_ALTERNATIVE_FONT_WIDTH*HYPERDISPLAY_ALTERNATIVE_FONT_HEIGHT];
+		hd_font_extent_t hyperdisplayAlternativeXloc[HYPERDISPLAY_ALTERNATIVE_FONT_WIDTH*HYPERDISPLAY_ALTERNATIVE_FONT_HEIGHT];
+		hd_font_extent_t hyperdisplayAlternativeYloc[HYPERDISPLAY_ALTERNATIVE_FONT_WIDTH*HYPERDISPLAY_ALTERNATIVE_FONT_HEIGHT];
 	#endif
 #endif
-
 
 
 
@@ -770,6 +770,8 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 
 
 #if HYPERDISPLAY_USE_PRINT
+
+#if HYPERDISPLAY_INCLUDE_DEFAULT_FONT	
 	// FYI this virtual function can be overwritten. It is just the most basic default version
 	size_t hyperdisplay::write(uint8_t val)
 	{
@@ -790,7 +792,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		// Now write the character
 		if(hyperdisplayDefaultCharacter.show)
 		{
-			//fillFromArray(pCurrentWindow->cursorX, pCurrentWindow->cursorY, pCurrentWindow->cursorX+hyperdisplayDefaultCharacter.xDim, pCurrentWindow->cursorY+hyperdisplayDefaultCharacter.yDim, hyperdisplayDefaultCharacter.numPixels, hyperdisplayDefaultCharacter.data);
+			// fillFromArray(pCurrentWindow->cursorX, pCurrentWindow->cursorY, pCurrentWindow->cursorX+hyperdisplayDefaultCharacter.xDim, pCurrentWindow->cursorY+hyperdisplayDefaultCharacter.yDim, hyperdisplayDefaultCharacter.numPixels, hyperdisplayDefaultCharacter.data);
 			for(uint32_t indi = 0; indi < hyperdisplayDefaultCharacter.numPixels; indi++)
 			{
 				pixel(((pCurrentWindow->cursorX)+*(hyperdisplayDefaultCharacter.xLoc + indi)), ((pCurrentWindow->cursorY)+*(hyperdisplayDefaultCharacter.yLoc + indi)), NULL, 1, 0);
@@ -805,8 +807,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		pCurrentWindow->lastCharacter = hyperdisplayDefaultCharacter;	// Set this character as the previous character - the info will persist because this is direct 
 		return numWritten;				
 	}
-
-#if HYPERDISPLAY_INCLUDE_DEFAULT_FONT 			        
+        
 		void hyperdisplay::getCharInfo(uint8_t character, char_info_t * character_info) 
 		{
 			// This is the most basic font implementation, it only prints a monochrome character using the first color of the current window's current color sequence
@@ -821,6 +822,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			character_info->xDim = 5;
 			character_info->yDim = 8;
 
+			// Serial.println(character);
 			// Figure out if the character should cause a newline
 			if (character == '\r' || character == '\n')
 			{
@@ -864,14 +866,52 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		}
 #endif /* HYPERDISPLAY_INCLUDE_DEFAULT_FONT */
 
-#if HYPERDISPLAY_INCLUDE_ALTERNATIVE_FONT 			        
+#if HYPERDISPLAY_INCLUDE_ALTERNATIVE_FONT
+	// FYI this virtual function can be overwritten. It is just the most basic default version
+	size_t hyperdisplay::write(uint8_t val)
+	{
+		size_t numWritten = 0;
+		getCharInfo(val, &hyperdisplayAlternativeCharacter);
+
+		// Check to see if current cursor coordinates work for the requested character
+		if(((pCurrentWindow->xMax - pCurrentWindow->xMin) - hyperdisplayAlternativeCharacter.xDim) < pCurrentWindow->cursorX)
+		{
+			if(((pCurrentWindow->yMax - pCurrentWindow->yMin) - hyperdisplayAlternativeCharacter.yDim) < pCurrentWindow->cursorY)
+			{
+				return numWritten;	// return because there is no more room in the x or y directions of the window
+			}
+			pCurrentWindow->cursorX = pCurrentWindow->xReset;				// Put x cursor back to reset location
+			pCurrentWindow->cursorY += hyperdisplayAlternativeCharacter.yDim;	// Move the cursor down by the size of the character
+		}
+
+		// Now write the character
+		if(hyperdisplayAlternativeCharacter.show)
+		{
+			// fillFromArray(pCurrentWindow->cursorX, pCurrentWindow->cursorY, pCurrentWindow->cursorX+hyperdisplayAlternativeCharacter.xDim, pCurrentWindow->cursorY+hyperdisplayAlternativeCharacter.yDim, hyperdisplayAlternativeCharacter.numPixels, hyperdisplayAlternativeCharacter.data);
+			for(uint32_t indi = 0; indi < hyperdisplayAlternativeCharacter.numPixels; indi++)
+			{
+				// Serial.println((int)hyperdisplayAlternativeCharacter.yLoc);
+				pixel(((pCurrentWindow->cursorX)+*(hyperdisplayAlternativeCharacter.xLoc + indi)), ((pCurrentWindow->cursorY)+*(hyperdisplayAlternativeCharacter.yLoc + indi)), NULL, 1, 0);
+			}
+
+			numWritten = 1;
+
+			// Now advance the cursor in the x direction so that you don't overwrite the work you just did
+			pCurrentWindow->cursorX += hyperdisplayAlternativeCharacter.xDim + 1;
+		}
+
+		pCurrentWindow->lastCharacter = hyperdisplayAlternativeCharacter;	// Set this character as the previous character - the info will persist because this is direct 
+		return numWritten;				
+	}
+
+
 		void hyperdisplay::getCharInfo(uint8_t character, char_info_t * character_info) 
 		{
 			character_info->data = NULL;	// Use the window's current color
 
 			// Link the default cordinate arrays
-			character_info->xLoc = hyperdisplayDefaultXloc;
-			character_info->yLoc = hyperdisplayDefaultYloc;
+			character_info->xLoc = hyperdisplayAlternativeXloc;
+			character_info->yLoc = hyperdisplayAlternativeYloc;
 
 			character_info->xDim = 8;
 			character_info->yDim = 17;
@@ -897,24 +937,39 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 				return;								// No point in continuing;
 			}
 
-			// Load up the character data and fill in coordinate data
-			uint8_t values[8];							// Holds the 8 bytes for the character
-			// The first number makes it start after the first row, which contains definitions
-			// The second number is the width of the height of the character
-			// The last number is the starting ASCII character
-			uint16_t offset = 6 + 8 * (character - 32);
+			// This holds the on or off pixel value in each row of the character being displayed
+			int values[8];
+
+			// The first value skips the settings
+			// The second value is the 
+			// The third value is the start character
+			int offset = 6 + 8 * (character - 32);
+
+			// Counter for how many pixels need to be printed
 			character_info->numPixels = 0;
-			uint16_t n = 0;
-			for(uint8_t indi = 0; indi < 8; indi++)
+			
+			// The index value of the next X and Y locations
+			int n = 0;
+			
+			// 
+			for(int indi = 0; indi < 8; indi++)
 			{
+
+				// Set each value in the array to
 				values[indi] = pgm_read_byte(font8x16 + offset + indi);
-				for(uint8_t indj = 0; indj < 17; indj++)
+				for(int indj = 0; indj < 17; indj++)
 				{
-					if(values[indi] & (0x01 << indj))
+					// 
+					if(values[indj] & (0x01 << indi))
 					{
+						// A pixel is being added so we need to increase the numPixels counter
 						character_info->numPixels++;
+
+						// Add the x and y locations of the new pixel to the character_info struct
 						*(character_info->xLoc + n) = (hd_font_extent_t)indi;
 						*(character_info->yLoc + n) = (hd_font_extent_t)indj;
+
+						// Increment the index value because we just filled the current index with pixel data
 						n++;
 					}
 				}
