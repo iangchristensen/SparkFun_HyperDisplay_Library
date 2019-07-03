@@ -913,6 +913,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			character_info->xLoc = hyperdisplayAlternativeXloc;
 			character_info->yLoc = hyperdisplayAlternativeYloc;
 
+			// Set the maximum x and y dimensions
 			character_info->xDim = 8;
 			character_info->yDim = 17;
 
@@ -940,9 +941,9 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			// This holds the on or off pixel value in each row of the character being displayed
 			int values[8];
 
-			// The first value skips the settings
-			// The second value is the 
-			// The third value is the start character
+			// The first value skips the first row of definitions
+			// The second value is the character width
+			// The third value is the ASCII start character
 			int offset = 6 + 8 * (character - 32);
 
 			// Counter for how many pixels need to be printed
@@ -951,15 +952,20 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			// The index value of the next X and Y locations
 			int n = 0;
 			
-			// 
+			// Read the 8 different values being saved in the array
 			for(int indi = 0; indi < 8; indi++)
 			{
 
-				// Set each value in the array to
+				// Sets each value in the array to a hex value from the fontmap, 
+				// which in binary should be a set of bits that are on or off
+				// representing the pixels that are either black or white
 				values[indi] = pgm_read_byte(font8x16 + offset + indi);
+
+				// 
 				for(int indj = 0; indj < 17; indj++)
 				{
-					// 
+					// Not sure what this does or why it works, but I switched the
+					// indi and indj values and the TFT displays the correct size
 					if(values[indj] & (0x01 << indi))
 					{
 						// A pixel is being added so we need to increase the numPixels counter
