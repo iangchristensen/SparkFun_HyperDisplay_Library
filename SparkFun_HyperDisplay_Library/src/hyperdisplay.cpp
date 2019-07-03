@@ -938,7 +938,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 				return;								// No point in continuing;
 			}
 
-			// This holds the on or off pixel value in each row of the character being displayed
+			// This will store the hex values that represent each column of pixels
 			int values[8];
 
 			// The first value skips the first row of definitions
@@ -952,20 +952,24 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			// The index value of the next X and Y locations
 			int n = 0;
 			
-			// Read the 8 different values being saved in the array
+			// Read the 8 different hex values being saved in the array
 			for(int indi = 0; indi < 8; indi++)
 			{
 
 				// Sets each value in the array to a hex value from the fontmap, 
 				// which in binary should be a set of bits that are on or off
-				// representing the pixels that are either black or white
+				// representing the pixels that are either black or white, etc.
 				values[indi] = pgm_read_byte(font8x16 + offset + indi);
 
-				// 
+				// Now go through each row of the character's pixels and do something???
 				for(int indj = 0; indj < 17; indj++)
 				{
 					// Not sure what this does or why it works, but I switched the
 					// indi and indj values and the TFT displays the correct size
+					// (obviously the the 0x01 is shifted to the left by indj, and 
+					//  then the column value is ANDed together to see if the outcome
+					//  is true...not sure what that means though without understanding
+					//  the fontmap better)
 					if(values[indj] & (0x01 << indi))
 					{
 						// A pixel is being added so we need to increase the numPixels counter
