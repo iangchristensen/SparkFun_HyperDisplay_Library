@@ -833,7 +833,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 				character_info->causesNewline = false;
 			} 
 
-			// Figure out if you need to actually show the chracter
+			// Figure out if you need to actually show the character
 			if((character >= ' ') && (character <= '~'))
 			{
 				character_info->show = true;
@@ -904,20 +904,26 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		return numWritten;				
 	}
 
-
 		void hyperdisplay::getCharInfo(uint8_t character, char_info_t * character_info) 
 		{
-			character_info->data = NULL;	// Use the window's current color
+			// All the magic numbers that need to be replaced with abstractions
+			int fontStartChar = 32;
+			int fontTotalChar = 96;
+			int fontMapWidth = 256;
+			int FONTHEADERSIZE = 6;
+			int fontType = 0;
+			const unsigned char *fontsPointer[]= { font8x16 };
+			int fontWidth = 8;
+			int fontHeight = 16;
+			character_info->xDim = 8;
+			character_info->yDim = 16;
 
-			// Link the default cordinate arrays
+			// Set the in-scope variables
+			character_info->data = NULL;
 			character_info->xLoc = hyperdisplayAlternativeXloc;
 			character_info->yLoc = hyperdisplayAlternativeYloc;
+			uint16_t n = 0;
 
-			// Set the maximum x and y dimensions
-			character_info->xDim = 8;
-			character_info->yDim = 17;
-
-			// Figure out if the character should cause a newline
 			if (character == '\r' || character == '\n')
 			{
 				character_info->causesNewline = true;
@@ -926,8 +932,6 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			{
 				character_info->causesNewline = false;
 			} 
-
-			// Figure out if you need to actually show the chracter
 			if((character >= ' ') && (character <= '~'))
 			{
 				character_info->show = true;
@@ -935,52 +939,77 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			else
 			{
 				character_info->show = false;
-				return;								// No point in continuing;
+				return;
 			}
 
-			// This will store the hex values that represent each column of pixels
-			int values[8];
+			uint8_t rowsToDraw, row, temporaryCharacter;
+			uint8_t i, j, temporary;
+			uint16_t charPerBitmapRow, charColPositionOnBitmap, charRowPositionOnBitmap, charBitmapStartPosition;
 
-			// The first value skips the first row of definitions
-			// The second value is the character width
-			// The third value is the ASCII start character
-			int offset = 6 + 8 * (character - 32);
-
-			// Counter for how many pixels need to be printed
-			character_info->numPixels = 0;
-			
-			// The index value of the next X and Y locations
-			int n = 0;
-			
-			// Read the 8 different hex values being saved in the array
-			for(int indi = 0; indi < 8; indi++)
+			if ((character < fontStartChar) || (character > (fontStartChar + fontTotalChar - 1)))
 			{
+				return;			
+			}
 
-				// Sets each value in the array to a hex value from the fontmap, 
-				// which in binary should be a set of bits that are on or off
-				// representing the pixels that are either black or white, etc.
-				values[indi] = pgm_read_byte(font8x16 + offset + indi);
+			temporaryCharacter = character - fontStartChar;
+			rowsToDraw = fontHeight / 8;
 
-				// Now go through each row of the character's pixels and do something???
-				for(int indj = 0; indj < 17; indj++)
+			if (rowsToDraw <= 1)
+			{ 
+				rowsToDraw = 1;
+			}
+
+			if (rowsToDraw == 1)
+			{
+				for  (i = 0; i < fontWidth + 1; i++)
 				{
-					// Not sure what this does or why it works, but I switched the
-					// indi and indj values and the TFT displays the correct size
-					// (obviously the the 0x01 is shifted to the left by indj, and 
-					//  then the column value is ANDed together to see if the outcome
-					//  is true...not sure what that means though without understanding
-					//  the fontmap better)
-					if(values[indj] & (0x01 << indi))
+					if (i == fontWidth)
 					{
-						// A pixel is being added so we need to increase the numPixels counter
-						character_info->numPixels++;
+						temporary = 0;
+					}
+					else
+					{
+						temporary = pgm_read_byte(fontsPointer[fontType] + FONTHEADERSIZE + (temporaryCharacter * fontWidth) + i);
+					}
+					for (j = 0; j < 8; j++)
+					{
+						if (temporary & 0x1)
+						{
+							character_info->numPixels++;
+							*(character_info->xLoc + n) = (hd_font_extent_t)i;
+							*(character_info->yLoc + n) = (hd_font_extent_t)j;
+							n++;
+						}
+						temporary >>= 1;
+					}
+				}
+				return;
+			}
 
-						// Add the x and y locations of the new pixel to the character_info struct
-						*(character_info->xLoc + n) = (hd_font_extent_t)indi;
-						*(character_info->yLoc + n) = (hd_font_extent_t)indj;
+			charPerBitmapRow = fontMapWidth / fontWidth;
+			charColPositionOnBitmap = temporaryCharacter % charPerBitmapRow;
+			charRowPositionOnBitmap = int(temporaryCharacter / charPerBitmapRow);
+			charBitmapStartPosition = (charRowPositionOnBitmap * fontMapWidth * rowsToDraw) + (charColPositionOnBitmap * fontWidth);
+			Serial.println(charColPositionOnBitmap);
 
-						// Increment the index value because we just filled the current index with pixel data
-						n++;
+			for (row = 0; row < rowsToDraw; row++)
+			{
+				// pCurrentWindow->cursorX = pCurrentWindow->xReset;				// Put x cursor back to reset location
+				// pCurrentWindow->cursorY += hyperdisplayAlternativeCharacter.yDim;	// Move the cursor down by the size of the character
+
+				for (i = 0; i < fontWidth; i++)
+				{
+					temporary = pgm_read_byte(fontsPointer[fontType] + FONTHEADERSIZE + (32 + i + (row * fontMapWidth)));
+					for (j = 0; j < 8; j++)
+					{
+						if (temporary & 0x1)
+						{
+							character_info->numPixels++;
+							*(character_info->xLoc + n) = (hd_font_extent_t)i;
+							*(character_info->yLoc + n) = (hd_font_extent_t)j;
+							n++;
+						}
+						temporary >>= 1;
 					}
 				}
 			}
