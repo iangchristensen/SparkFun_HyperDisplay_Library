@@ -8,17 +8,24 @@ header file: hyperdisplay.h
 #include "hyperdisplay.h"					// Click here to get the library: http://librarymanager/SparkFun_HyperDisplay
 
 wind_info_t hyperdisplayDefaultWindow;		// This window is used by default so that the user does not have to worry about windows if they don't want to
-char_info_t hyperdisplayDefaultCharacter;	// The default character to use
-char_info_t hyperdisplayAlternativeCharacter;
+char_info_t hyperdisplayCharacter;	// The default character to use
 
 #if HYPERDISPLAY_USE_PRINT
-    #if HYPERDISPLAY_INCLUDE_DEFAULT_FONT   
-		hd_font_extent_t hyperdisplayDefaultXloc[HYPERDISPLAY_DEFAULT_FONT_WIDTH*HYPERDISPLAY_DEFAULT_FONT_HEIGHT];
-		hd_font_extent_t hyperdisplayDefaultYloc[HYPERDISPLAY_DEFAULT_FONT_WIDTH*HYPERDISPLAY_DEFAULT_FONT_HEIGHT];
+// Add the font name as declared in the header file.  Remove as many as possible to get conserve FLASH memory.
+	const unsigned char *hyperdisplay::fontsPointer[] = {
+		font5x7,
+		font8x16
+	};
+
+    #if HYPERDISPLAY_INCLUDE_SMALL_FONT
+		hd_font_extent_t hyperdisplayXloc[HYPERDISPLAY_SMALL_FONT_WIDTH*HYPERDISPLAY_SMALL_FONT_HEIGHT];
+		hd_font_extent_t hyperdisplayYloc[HYPERDISPLAY_SMALL_FONT_WIDTH*HYPERDISPLAY_SMALL_FONT_HEIGHT];
+		uint8_t FONT_TYPE = 0;
 	#endif
-	#if HYPERDISPLAY_INCLUDE_ALTERNATIVE_FONT   
-		hd_font_extent_t hyperdisplayAlternativeXloc[HYPERDISPLAY_ALTERNATIVE_FONT_WIDTH*HYPERDISPLAY_ALTERNATIVE_FONT_HEIGHT];
-		hd_font_extent_t hyperdisplayAlternativeYloc[HYPERDISPLAY_ALTERNATIVE_FONT_WIDTH*HYPERDISPLAY_ALTERNATIVE_FONT_HEIGHT];
+	#if HYPERDISPLAY_INCLUDE_LARGE_FONT
+		hd_font_extent_t hyperdisplayXloc[HYPERDISPLAY_LARGE_FONT_WIDTH*HYPERDISPLAY_LARGE_FONT_HEIGHT];
+		hd_font_extent_t hyperdisplayYloc[HYPERDISPLAY_LARGE_FONT_WIDTH*HYPERDISPLAY_LARGE_FONT_HEIGHT];
+		uint8_t FONT_TYPE = 1;
 	#endif
 #endif
 
@@ -771,59 +778,68 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 
 #if HYPERDISPLAY_USE_PRINT
 
-#if HYPERDISPLAY_INCLUDE_DEFAULT_FONT	
+// #if HYPERDISPLAY_INCLUDE_SMALL_FONT
 	// FYI this virtual function can be overwritten. It is just the most basic default version
 	size_t hyperdisplay::write(uint8_t val)
 	{
 		size_t numWritten = 0;
-		getCharInfo(val, &hyperdisplayDefaultCharacter);
+		getCharInfo(val, &hyperdisplayCharacter);
 
 		// Check to see if current cursor coordinates work for the requested character
-		if(((pCurrentWindow->xMax - pCurrentWindow->xMin) - hyperdisplayDefaultCharacter.xDim) < pCurrentWindow->cursorX)
+		if(((pCurrentWindow->xMax - pCurrentWindow->xMin) - hyperdisplayCharacter.xDim) < pCurrentWindow->cursorX)
 		{
-			if(((pCurrentWindow->yMax - pCurrentWindow->yMin) - hyperdisplayDefaultCharacter.yDim) < pCurrentWindow->cursorY)
+			if(((pCurrentWindow->yMax - pCurrentWindow->yMin) - hyperdisplayCharacter.yDim) < pCurrentWindow->cursorY)
 			{
 				return numWritten;	// return because there is no more room in the x or y directions of the window
 			}
 			pCurrentWindow->cursorX = pCurrentWindow->xReset;				// Put x cursor back to reset location
-			pCurrentWindow->cursorY += hyperdisplayDefaultCharacter.yDim;	// Move the cursor down by the size of the character
+			pCurrentWindow->cursorY += hyperdisplayCharacter.yDim;	// Move the cursor down by the size of the character
 		}
 
 		// Now write the character
-		if(hyperdisplayDefaultCharacter.show)
+		if(hyperdisplayCharacter.show)
 		{
-			// fillFromArray(pCurrentWindow->cursorX, pCurrentWindow->cursorY, pCurrentWindow->cursorX+hyperdisplayDefaultCharacter.xDim, pCurrentWindow->cursorY+hyperdisplayDefaultCharacter.yDim, hyperdisplayDefaultCharacter.numPixels, hyperdisplayDefaultCharacter.data);
-			for(uint32_t indi = 0; indi < hyperdisplayDefaultCharacter.numPixels; indi++)
+			// fillFromArray(pCurrentWindow->cursorX, pCurrentWindow->cursorY, pCurrentWindow->cursorX+hyperdisplayCharacter.xDim, pCurrentWindow->cursorY+hyperdisplayCharacter.yDim, hyperdisplayCharacter.numPixels, hyperdisplayCharacter.data);
+			for(uint32_t indi = 0; indi < hyperdisplayCharacter.numPixels; indi++)
 			{
-				pixel(((pCurrentWindow->cursorX)+*(hyperdisplayDefaultCharacter.xLoc + indi)), ((pCurrentWindow->cursorY)+*(hyperdisplayDefaultCharacter.yLoc + indi)), NULL, 1, 0);
+				pixel(((pCurrentWindow->cursorX)+*(hyperdisplayCharacter.xLoc + indi)), ((pCurrentWindow->cursorY)+*(hyperdisplayCharacter.yLoc + indi)), NULL, 1, 0);
 			}
 
 			numWritten = 1;
 
 			// Now advance the cursor in the x direction so that you don't overwrite the work you just did
-			pCurrentWindow->cursorX += hyperdisplayDefaultCharacter.xDim + 1;
+			pCurrentWindow->cursorX += hyperdisplayCharacter.xDim + 1;
 		}
 
-		pCurrentWindow->lastCharacter = hyperdisplayDefaultCharacter;	// Set this character as the previous character - the info will persist because this is direct 
+		pCurrentWindow->lastCharacter = hyperdisplayCharacter;	// Set this character as the previous character - the info will persist because this is direct 
 		return numWritten;				
 	}
         
 		void hyperdisplay::getCharInfo(uint8_t character, char_info_t * character_info) 
 		{
-			// This is the most basic font implementation, it only prints a monochrome character using the first color of the current window's current color sequence
-			// If you want any more font capabilities then you should re-implement this function :D
+			// TODO: use fixed width integer types when I finish
+			// Local Constants
+			int FONT_HEADER_SIZE = 6;
+			int FONT_WIDTH = pgm_read_byte(fontsPointer[FONT_TYPE] + 0);
+			int FONT_HEIGHT = pgm_read_byte(fontsPointer[FONT_TYPE] + 1);
+			int FONT_START_CHAR = pgm_read_byte(fontsPointer[FONT_TYPE] + 2);
+			int FONT_TOTAL_CHAR = pgm_read_byte(fontsPointer[FONT_TYPE] + 3);
+			int FONT_MAP_WIDTH = (pgm_read_byte(fontsPointer[FONT_TYPE] + 4) * 100) + pgm_read_byte(fontsPointer[FONT_TYPE] + 5);
 
-			character_info->data = NULL;	// Use the window's current color
+			// Character Info Struct
+			character_info->data = NULL;
+			character_info->xLoc = hyperdisplayXloc;
+			character_info->yLoc = hyperdisplayYloc;
+			character_info->xDim = FONT_WIDTH;
+			character_info->yDim = FONT_HEIGHT;
 
-			// Link the default cordinate arrays
-			character_info->xLoc = hyperdisplayDefaultXloc;
-			character_info->yLoc = hyperdisplayDefaultYloc;
+			// Local variables
+			uint16_t n = 0;	// The index of the next x and y values that will be added
+			uint8_t rowsToDraw, row, temporaryCharacter;
+			uint8_t i, j, temporary;
+			uint16_t characterPerBitmapRow, characterColumnPositionOnBitmap, characterRowPositionOnBitmap, characterBitmapStartPosition;
+			rowsToDraw = FONT_HEIGHT / 8;
 
-			character_info->xDim = 5;
-			character_info->yDim = 8;
-
-			// Serial.println(character);
-			// Figure out if the character should cause a newline
 			if (character == '\r' || character == '\n')
 			{
 				character_info->causesNewline = true;
@@ -841,139 +857,33 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			else
 			{
 				character_info->show = false;
-				return;								// No point in continuing;
-			}
-
-			// Load up the character data and fill in coordinate data
-			uint8_t values[5];							// Holds the 5 bytes for the character
-			uint16_t offset = 6 + 5 * (character - 0);
-			character_info->numPixels = 0;
-			uint16_t n = 0;
-			for(uint8_t indi = 0; indi < 5; indi++)
-			{
-				values[indi] = pgm_read_byte(font5x7 + offset + indi);
-				for(uint8_t indj = 0; indj < 8; indj++)
-				{
-					if(values[indi] & (0x01 << indj))
-					{
-						character_info->numPixels++;
-						*(character_info->xLoc + n) = (hd_font_extent_t)indi;
-						*(character_info->yLoc + n) = (hd_font_extent_t)indj;
-						n++;
-					}
-				}
-			}
-		}
-#endif /* HYPERDISPLAY_INCLUDE_DEFAULT_FONT */
-
-#if HYPERDISPLAY_INCLUDE_ALTERNATIVE_FONT
-	// FYI this virtual function can be overwritten. It is just the most basic default version
-	size_t hyperdisplay::write(uint8_t val)
-	{
-		size_t numWritten = 0;
-		getCharInfo(val, &hyperdisplayAlternativeCharacter);
-
-		// Check to see if current cursor coordinates work for the requested character
-		if(((pCurrentWindow->xMax - pCurrentWindow->xMin) - hyperdisplayAlternativeCharacter.xDim) < pCurrentWindow->cursorX)
-		{
-			if(((pCurrentWindow->yMax - pCurrentWindow->yMin) - hyperdisplayAlternativeCharacter.yDim) < pCurrentWindow->cursorY)
-			{
-				return numWritten;	// return because there is no more room in the x or y directions of the window
-			}
-			pCurrentWindow->cursorX = pCurrentWindow->xReset;				// Put x cursor back to reset location
-			pCurrentWindow->cursorY += hyperdisplayAlternativeCharacter.yDim;	// Move the cursor down by the size of the character
-		}
-
-		// Now write the character
-		if(hyperdisplayAlternativeCharacter.show)
-		{
-			// fillFromArray(pCurrentWindow->cursorX, pCurrentWindow->cursorY, pCurrentWindow->cursorX+hyperdisplayAlternativeCharacter.xDim, pCurrentWindow->cursorY+hyperdisplayAlternativeCharacter.yDim, hyperdisplayAlternativeCharacter.numPixels, hyperdisplayAlternativeCharacter.data);
-			for(uint32_t indi = 0; indi < hyperdisplayAlternativeCharacter.numPixels; indi++)
-			{
-				// Serial.println((int)hyperdisplayAlternativeCharacter.yLoc);
-				pixel(((pCurrentWindow->cursorX)+*(hyperdisplayAlternativeCharacter.xLoc + indi)), ((pCurrentWindow->cursorY)+*(hyperdisplayAlternativeCharacter.yLoc + indi)), NULL, 1, 0);
-			}
-
-			numWritten = 1;
-
-			// Now advance the cursor in the x direction so that you don't overwrite the work you just did
-			pCurrentWindow->cursorX += hyperdisplayAlternativeCharacter.xDim + 1;
-		}
-
-		pCurrentWindow->lastCharacter = hyperdisplayAlternativeCharacter;	// Set this character as the previous character - the info will persist because this is direct 
-		return numWritten;				
-	}
-
-		void hyperdisplay::getCharInfo(uint8_t character, char_info_t * character_info) 
-		{
-			// All the magic numbers that need to be replaced with abstractions
-			int fontStartChar = 32;
-			int fontTotalChar = 96;
-			int fontMapWidth = 256;
-			int FONTHEADERSIZE = 6;
-			int fontType = 0;
-			const unsigned char *fontsPointer[]= { font8x16 };
-			int fontWidth = 8;
-			int fontHeight = 16;
-			character_info->xDim = 8;
-			character_info->yDim = 16;
-
-			// Set the in-scope variables
-			character_info->data = NULL;
-			character_info->xLoc = hyperdisplayAlternativeXloc;
-			character_info->yLoc = hyperdisplayAlternativeYloc;
-			uint16_t n = 0;
-
-			if (character == '\r' || character == '\n')
-			{
-				character_info->causesNewline = true;
-			}
-			else
-			{
-				character_info->causesNewline = false;
-			} 
-			if((character >= ' ') && (character <= '~'))
-			{
-				character_info->show = true;
-			}
-			else
-			{
-				character_info->show = false;
 				return;
 			}
 
-			uint8_t rowsToDraw, row, temporaryCharacter;
-			uint8_t i, j, temporary;
-			uint16_t charPerBitmapRow, charColPositionOnBitmap, charRowPositionOnBitmap, charBitmapStartPosition;
-
-			if ((character < fontStartChar) || (character > (fontStartChar + fontTotalChar - 1)))
-			{
-				return;			
+			if ((character < FONT_START_CHAR) || (character > (FONT_START_CHAR + FONT_TOTAL_CHAR - 1))) {
+				return;
 			}
 
-			temporaryCharacter = character - fontStartChar;
-			rowsToDraw = fontHeight / 8;
-
 			if (rowsToDraw <= 1)
-			{ 
+			{
 				rowsToDraw = 1;
 			}
 
 			if (rowsToDraw == 1)
 			{
-				for  (i = 0; i < fontWidth + 1; i++)
+				for  (i = 0; i < FONT_WIDTH + 1; i++)
 				{
-					if (i == fontWidth)
+					if (i == FONT_WIDTH)
 					{
 						temporary = 0;
 					}
 					else
 					{
-						temporary = pgm_read_byte(fontsPointer[fontType] + FONTHEADERSIZE + (temporaryCharacter * fontWidth) + i);
+						temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + ((character - FONT_START_CHAR) * FONT_WIDTH) + i);
 					}
 					for (j = 0; j < 8; j++)
 					{
-						if (temporary & 0x1)
+						if (temporary & 0x01)
 						{
 							character_info->numPixels++;
 							*(character_info->xLoc + n) = (hd_font_extent_t)i;
@@ -986,23 +896,22 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 				return;
 			}
 
-			charPerBitmapRow = fontMapWidth / fontWidth;
-			charColPositionOnBitmap = temporaryCharacter % charPerBitmapRow;
-			charRowPositionOnBitmap = int(temporaryCharacter / charPerBitmapRow);
-			charBitmapStartPosition = (charRowPositionOnBitmap * fontMapWidth * rowsToDraw) + (charColPositionOnBitmap * fontWidth);
-			Serial.println(charColPositionOnBitmap);
+			characterPerBitmapRow = FONT_MAP_WIDTH / FONT_WIDTH;
+			characterColumnPositionOnBitmap = temporaryCharacter % characterPerBitmapRow;
+			characterRowPositionOnBitmap = int(temporaryCharacter / characterPerBitmapRow);
+			characterBitmapStartPosition = (characterRowPositionOnBitmap * FONT_MAP_WIDTH * rowsToDraw) + (characterColumnPositionOnBitmap * FONT_WIDTH);
 
 			for (row = 0; row < rowsToDraw; row++)
 			{
 				// pCurrentWindow->cursorX = pCurrentWindow->xReset;				// Put x cursor back to reset location
-				// pCurrentWindow->cursorY += hyperdisplayAlternativeCharacter.yDim;	// Move the cursor down by the size of the character
+				// pCurrentWindow->cursorY += hyperdisplayCharacter.yDim;	// Move the cursor down by the size of the character
 
-				for (i = 0; i < fontWidth; i++)
+				for (i = 0; i < FONT_WIDTH; i++)
 				{
-					temporary = pgm_read_byte(fontsPointer[fontType] + FONTHEADERSIZE + (32 + i + (row * fontMapWidth)));
+					temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + characterBitmapStartPosition + i + (row * FONT_MAP_WIDTH));
 					for (j = 0; j < 8; j++)
 					{
-						if (temporary & 0x1)
+						if (temporary & 0x01)
 						{
 							character_info->numPixels++;
 							*(character_info->xLoc + n) = (hd_font_extent_t)i;
@@ -1014,7 +923,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 				}
 			}
 		}
-#endif /* HYPERDISPLAY_INCLUDE_ALTERNATIVE_FONT */
+// #endif  HYPERDISPLAY_INCLUDE_FONT 
 
 #else /* HYPERDISPLAY_USE_PRINT */
 	// This is here in case you choose not to implement printing functions

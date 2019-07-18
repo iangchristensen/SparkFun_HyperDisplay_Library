@@ -34,16 +34,17 @@ Purpose: This library standardizes interfaces to displays of many types.
 	#include "util/SparkFun_2DRayTracing.h"
 #endif
 
-#if HYPERDISPLAY_USE_PRINT                  // 
-    #if HYPERDISPLAY_INCLUDE_DEFAULT_FONT   
-        #include "util/font5x7.h"
-        #define HYPERDISPLAY_DEFAULT_FONT_WIDTH 5
-        #define HYPERDISPLAY_DEFAULT_FONT_HEIGHT 8
+#if HYPERDISPLAY_USE_PRINT
+    #include <util/font5x7.h>
+    #include <util/font8x16.h>
+
+    #if HYPERDISPLAY_INCLUDE_SMALL_FONT
+        #define HYPERDISPLAY_SMALL_FONT_WIDTH 5
+        #define HYPERDISPLAY_SMALL_FONT_HEIGHT 8
     #endif
-    #if HYPERDISPLAY_INCLUDE_ALTERNATIVE_FONT   
-        #include "util/font8x16.h"
-        #define HYPERDISPLAY_ALTERNATIVE_FONT_WIDTH 8
-        #define HYPERDISPLAY_ALTERNATIVE_FONT_HEIGHT 17
+    #if HYPERDISPLAY_INCLUDE_LARGE_FONT
+        #define HYPERDISPLAY_LARGE_FONT_WIDTH 8
+        #define HYPERDISPLAY_LARGE_FONT_HEIGHT 17
     #endif
 #endif
 
@@ -115,6 +116,8 @@ extern char_info_t hyperdisplayDefaultCharacter;
 
 class hyperdisplay : public Print{
     private:
+        static const unsigned char *fontsPointer[];
+
     protected:
 
     	hyperdisplay(uint16_t xSize, uint16_t ySize);	// Constructor - used to make sure member parameters are setup correctly
