@@ -11,12 +11,10 @@ wind_info_t hyperdisplayDefaultWindow;		// This window is used by default so tha
 char_info_t hyperdisplayCharacter;	// The default character to use
 
 #if HYPERDISPLAY_USE_PRINT
-// Add the font name as declared in the header file.  Remove as many as possible to get conserve FLASH memory.
 	const unsigned char *hyperdisplay::fontsPointer[] = {
 		font5x7,
 		font8x16
 	};
-
     #if HYPERDISPLAY_INCLUDE_SMALL_FONT
 		hd_font_extent_t hyperdisplayXloc[HYPERDISPLAY_SMALL_FONT_WIDTH*HYPERDISPLAY_SMALL_FONT_HEIGHT];
 		hd_font_extent_t hyperdisplayYloc[HYPERDISPLAY_SMALL_FONT_WIDTH*HYPERDISPLAY_SMALL_FONT_HEIGHT];
@@ -28,9 +26,6 @@ char_info_t hyperdisplayCharacter;	// The default character to use
 		uint8_t FONT_TYPE = 1;
 	#endif
 #endif
-
-
-
 
 /////////////////////////////////////////////
 // 					Constructor
@@ -777,8 +772,6 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 
 
 #if HYPERDISPLAY_USE_PRINT
-
-// #if HYPERDISPLAY_INCLUDE_SMALL_FONT
 	// FYI this virtual function can be overwritten. It is just the most basic default version
 	size_t hyperdisplay::write(uint8_t val)
 	{
@@ -814,116 +807,113 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		pCurrentWindow->lastCharacter = hyperdisplayCharacter;	// Set this character as the previous character - the info will persist because this is direct 
 		return numWritten;				
 	}
-        
-		void hyperdisplay::getCharInfo(uint8_t character, char_info_t * character_info) 
+
+	void hyperdisplay::getCharInfo(uint8_t character, char_info_t * character_info)
 		{
-			// TODO: use fixed width integer types when I finish
-			// Local Constants
-			int FONT_HEADER_SIZE = 6;
-			int FONT_WIDTH = pgm_read_byte(fontsPointer[FONT_TYPE] + 0);
-			int FONT_HEIGHT = pgm_read_byte(fontsPointer[FONT_TYPE] + 1);
-			int FONT_START_CHAR = pgm_read_byte(fontsPointer[FONT_TYPE] + 2);
-			int FONT_TOTAL_CHAR = pgm_read_byte(fontsPointer[FONT_TYPE] + 3);
-			int FONT_MAP_WIDTH = (pgm_read_byte(fontsPointer[FONT_TYPE] + 4) * 100) + pgm_read_byte(fontsPointer[FONT_TYPE] + 5);
+		// TODO: use fixed width integer types when I finish
+		// Local Constants
+		uint8_t FONT_HEADER_SIZE = 6;
+		uint8_t FONT_WIDTH = pgm_read_byte(fontsPointer[FONT_TYPE] + 0);
+		uint8_t FONT_HEIGHT = pgm_read_byte(fontsPointer[FONT_TYPE] + 1);
+		uint8_t FONT_START_CHAR = pgm_read_byte(fontsPointer[FONT_TYPE] + 2);
+		uint8_t FONT_TOTAL_CHAR = pgm_read_byte(fontsPointer[FONT_TYPE] + 3);
+		uint16_t FONT_MAP_WIDTH = (pgm_read_byte(fontsPointer[FONT_TYPE] + 4) * 100) + pgm_read_byte(fontsPointer[FONT_TYPE] + 5);
 
-			// Character Info Struct
-			character_info->data = NULL;
-			character_info->xLoc = hyperdisplayXloc;
-			character_info->yLoc = hyperdisplayYloc;
-			character_info->xDim = FONT_WIDTH;
-			character_info->yDim = FONT_HEIGHT;
+		// Character Info Struct
+		character_info->data = NULL;
+		character_info->xLoc = hyperdisplayXloc;
+		character_info->yLoc = hyperdisplayYloc;
+		character_info->xDim = FONT_WIDTH;
+		character_info->yDim = FONT_HEIGHT;
 
-			// Local variables
-			uint16_t n = 0;	// The index of the next x and y values that will be added
-			uint8_t rowsToDraw, row, temporaryCharacter;
-			uint8_t i, j, temporary;
-			uint16_t characterPerBitmapRow, characterColumnPositionOnBitmap, characterRowPositionOnBitmap, characterBitmapStartPosition;
-			rowsToDraw = FONT_HEIGHT / 8;
+		// Local variables
+		uint8_t temporaryCharacter, temporary;
+		uint8_t rowsToDraw = FONT_HEIGHT / 8;
+		uint16_t n = 0;
+		uint16_t characterPerBitmapRow, characterColumnPositionOnBitmap, characterRowPositionOnBitmap, characterBitmapStartPosition;
+		uint16_t offset = FONT_HEADER_SIZE + ((character - FONT_START_CHAR) * FONT_WIDTH);
 
-			if (character == '\r' || character == '\n')
+		// Figure out if the character should cause a newline
+		if (character == '\r' || character == '\n')
+		{
+			character_info->causesNewline = true;
+		}
+		else
+		{
+			character_info->causesNewline = false;
+		} 
+
+		// Figure out if you need to actually show the chracter
+		if((character >= ' ') && (character <= '~'))
+		{
+			character_info->show = true;
+		}
+		else
+		{
+			character_info->show = false;
+			return;								// No point in continuing;
+		}
+
+		if ((character < FONT_START_CHAR) || (character > (FONT_START_CHAR + FONT_TOTAL_CHAR - 1))) {
+			return;
+		}
+
+		if (rowsToDraw <= 1)
+		{
+			rowsToDraw = 1;
+		}
+
+		// Load up the character data and fill in coordinate data
+		if (rowsToDraw == 1)
+		{
+			character_info->numPixels = 0;
+			for (uint8_t indi = 0; indi < FONT_WIDTH; indi++)
 			{
-				character_info->causesNewline = true;
-			}
-			else
-			{
-				character_info->causesNewline = false;
-			} 
-
-			// Figure out if you need to actually show the character
-			if((character >= ' ') && (character <= '~'))
-			{
-				character_info->show = true;
-			}
-			else
-			{
-				character_info->show = false;
-				return;
-			}
-
-			if ((character < FONT_START_CHAR) || (character > (FONT_START_CHAR + FONT_TOTAL_CHAR - 1))) {
-				return;
-			}
-
-			if (rowsToDraw <= 1)
-			{
-				rowsToDraw = 1;
-			}
-
-			if (rowsToDraw == 1)
-			{
-				for  (i = 0; i < FONT_WIDTH + 1; i++)
+				temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + offset + indi);
+				for (uint8_t indj = 0; indj < 8; indj++)
 				{
-					if (i == FONT_WIDTH)
+					if (temporary & (0x01 << indj))
 					{
-						temporary = 0;
-					}
-					else
-					{
-						temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + ((character - FONT_START_CHAR) * FONT_WIDTH) + i);
-					}
-					for (j = 0; j < 8; j++)
-					{
-						if (temporary & 0x01)
-						{
-							character_info->numPixels++;
-							*(character_info->xLoc + n) = (hd_font_extent_t)i;
-							*(character_info->yLoc + n) = (hd_font_extent_t)j;
-							n++;
-						}
-						temporary >>= 1;
+						character_info->numPixels++;
+						*(character_info->xLoc + n) = (hd_font_extent_t)indi;
+						*(character_info->yLoc + n) = (hd_font_extent_t)indj;
+						n++;
 					}
 				}
-				return;
 			}
+			return;
+		}
+		else
+		{
 
 			characterPerBitmapRow = FONT_MAP_WIDTH / FONT_WIDTH;
 			characterColumnPositionOnBitmap = temporaryCharacter % characterPerBitmapRow;
-			characterRowPositionOnBitmap = int(temporaryCharacter / characterPerBitmapRow);
+			characterRowPositionOnBitmap = temporaryCharacter / characterPerBitmapRow;
 			characterBitmapStartPosition = (characterRowPositionOnBitmap * FONT_MAP_WIDTH * rowsToDraw) + (characterColumnPositionOnBitmap * FONT_WIDTH);
+			// uint16_t offset = FONT_HEADER_SIZE + ((character - FONT_START_CHAR) * FONT_WIDTH);
 
-			for (row = 0; row < rowsToDraw; row++)
+			for (uint8_t row = 1; row < rowsToDraw+1; row++)
 			{
-				// pCurrentWindow->cursorX = pCurrentWindow->xReset;				// Put x cursor back to reset location
-				// pCurrentWindow->cursorY += hyperdisplayCharacter.yDim;	// Move the cursor down by the size of the character
-
-				for (i = 0; i < FONT_WIDTH; i++)
+				// pCurrentWindow->cursorX = pCurrentWindow->xReset;
+				// pCurrentWindow->cursorY += hyperdisplayCharacter.yDim;
+				for (uint8_t indi = 0; indi < FONT_WIDTH; indi++)
 				{
-					temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + characterBitmapStartPosition + i + (row * FONT_MAP_WIDTH));
-					for (j = 0; j < 8; j++)
+					temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + characterBitmapStartPosition + (row * FONT_MAP_WIDTH) + indi);
+					for (uint8_t indj = 0; indj < 8; indj++)
 					{
-						if (temporary & 0x01)
+						if (temporary & (0x01 << indj))
 						{
 							character_info->numPixels++;
-							*(character_info->xLoc + n) = (hd_font_extent_t)i;
-							*(character_info->yLoc + n) = (hd_font_extent_t)j;
+							*(character_info->xLoc + n) = (hd_font_extent_t)(int(character_info->xLoc)+indi);
+							*(character_info->yLoc + n) = (hd_font_extent_t)(int(character_info->yLoc)+indj);
 							n++;
 						}
-						temporary >>= 1;
 					}
 				}
 			}
+			return;
 		}
-// #endif  HYPERDISPLAY_INCLUDE_FONT 
+	}
 
 #else /* HYPERDISPLAY_USE_PRINT */
 	// This is here in case you choose not to implement printing functions
