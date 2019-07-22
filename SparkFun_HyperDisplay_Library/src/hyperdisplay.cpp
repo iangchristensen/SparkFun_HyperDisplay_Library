@@ -827,10 +827,8 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		character_info->yDim = FONT_HEIGHT;
 
 		// Local variables
-		uint8_t temporaryCharacter, temporary;
 		uint8_t rowsToDraw = FONT_HEIGHT / 8;
 		uint16_t n = 0;
-		uint16_t characterPerBitmapRow, characterColumnPositionOnBitmap, characterRowPositionOnBitmap, characterBitmapStartPosition;
 		uint16_t offset = FONT_HEADER_SIZE + ((character - FONT_START_CHAR) * FONT_WIDTH);
 
 		// Figure out if the character should cause a newline
@@ -869,7 +867,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 			character_info->numPixels = 0;
 			for (uint8_t indi = 0; indi < FONT_WIDTH; indi++)
 			{
-				temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + offset + indi);
+				uint8_t temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + offset + indi);
 				for (uint8_t indj = 0; indj < 8; indj++)
 				{
 					if (temporary & (0x01 << indj))
@@ -885,27 +883,23 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		}
 		else
 		{
+			uint16_t charactersPerBitmapRow = FONT_MAP_WIDTH / FONT_WIDTH;
+			uint16_t characterColumnPositionOnBitmap = (character - FONT_START_CHAR) % charactersPerBitmapRow;
+			uint16_t characterRowPositionOnBitmap = (character - FONT_START_CHAR) / charactersPerBitmapRow;
+			uint16_t characterBitmapStartPosition = (characterRowPositionOnBitmap * FONT_MAP_WIDTH * rowsToDraw) + (characterColumnPositionOnBitmap * FONT_WIDTH);
 
-			characterPerBitmapRow = FONT_MAP_WIDTH / FONT_WIDTH;
-			characterColumnPositionOnBitmap = temporaryCharacter % characterPerBitmapRow;
-			characterRowPositionOnBitmap = temporaryCharacter / characterPerBitmapRow;
-			characterBitmapStartPosition = (characterRowPositionOnBitmap * FONT_MAP_WIDTH * rowsToDraw) + (characterColumnPositionOnBitmap * FONT_WIDTH);
-			// uint16_t offset = FONT_HEADER_SIZE + ((character - FONT_START_CHAR) * FONT_WIDTH);
-
-			for (uint8_t row = 1; row < rowsToDraw+1; row++)
+			for (uint8_t row = 0; row < rowsToDraw; row++)
 			{
-				// pCurrentWindow->cursorX = pCurrentWindow->xReset;
-				// pCurrentWindow->cursorY += hyperdisplayCharacter.yDim;
 				for (uint8_t indi = 0; indi < FONT_WIDTH; indi++)
 				{
-					temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + characterBitmapStartPosition + (row * FONT_MAP_WIDTH) + indi);
+					uint8_t temporary = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + characterBitmapStartPosition + (row * FONT_MAP_WIDTH) + indi);
 					for (uint8_t indj = 0; indj < 8; indj++)
 					{
 						if (temporary & (0x01 << indj))
 						{
 							character_info->numPixels++;
-							*(character_info->xLoc + n) = (hd_font_extent_t)(int(character_info->xLoc)+indi);
-							*(character_info->yLoc + n) = (hd_font_extent_t)(int(character_info->yLoc)+indj);
+							*(character_info->xLoc + n) = (hd_font_extent_t)indi;
+							*(character_info->yLoc + n) = (hd_font_extent_t)indj;
 							n++;
 						}
 					}
