@@ -810,14 +810,18 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 
 	void hyperdisplay::getCharInfo(uint8_t character, char_info_t * character_info)
 	{
-		// Local constants from the font header
-		uint8_t FILE_HEADER 	=  6;
+		// Retrieve local constants from the font header
+		uint8_t FONT_HEADER_SIZE=  6;
 		uint8_t FONT_WIDTH 		=  pgm_read_byte(fontsPointer[FONT_TYPE] + 0);
 		uint8_t FONT_HEIGHT 	=  pgm_read_byte(fontsPointer[FONT_TYPE] + 1);
 		uint8_t FONT_START_CHAR =  pgm_read_byte(fontsPointer[FONT_TYPE] + 2);
-		uint8_t FONT_TOTAL_CHAR =  pgm_read_byte(fontsPointer[FONT_TYPE] + 3);
+		uint8_t	FONT_TOTAL_CHAR =  pgm_read_byte(fontsPointer[FONT_TYPE] + 3);
 		uint16_t FONT_MAP_WIDTH = (pgm_read_byte(fontsPointer[FONT_TYPE] + 4) * 100)
 								 + pgm_read_byte(fontsPointer[FONT_TYPE] + 5);
+
+		// Initialize the local variables
+		uint8_t indi, indj, row, currentByte, rowsToDraw, pixelLocationArrayIndex = 0;
+		rowsToDraw = FONT_HEIGHT / 8;
 
 		// Set the character structure to the selected font
 		character_info->data = NULL;
@@ -825,11 +829,7 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		character_info->yLoc = hyperdisplayYloc;
 		character_info->xDim = FONT_WIDTH;
 		character_info->yDim = FONT_HEIGHT;
-
-		// Local variables
-		uint8_t indi, indj, row, currentByte, rowsToDraw = 0;
-		rowsToDraw = FONT_HEIGHT / 8;
-		uint16_t n = 0;
+		character_info->numPixels = 0;
 
 		// Figure out if the character should cause a newline
 		if (character == '\r' || character == '\n')
@@ -839,23 +839,25 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		else
 		{
 			character_info->causesNewline = false;
-		} 
+		}
 
 		// Figure out if you need to actually show the chracter
-		if((character >= ' ') && (character <= '~'))
+		if ((character >= ' ') && (character <= '~'))
 		{
 			character_info->show = true;
 		}
 		else
 		{
 			character_info->show = false;
-			return;								// No point in continuing;
+			return;		// No point in continuing;
 		}
 
+		// Figure out if the character is within the font range
 		if ((character < FONT_START_CHAR) || (character > (FONT_START_CHAR + FONT_TOTAL_CHAR - 1))) {
 			return;
 		}
 
+		// Figure out if the number of rows is one or more rows
 		if (rowsToDraw <= 1)
 		{
 			rowsToDraw = 1;
@@ -864,18 +866,20 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		// Load up the character data and fill in coordinate data
 		if (rowsToDraw == 1)
 		{
-			character_info->numPixels = 0;
 			for (indi = 0; indi < FONT_WIDTH; indi++)
 			{
-				currentByte = pgm_read_byte(fontsPointer[FONT_TYPE] + FILE_HEADER + ((character - FONT_START_CHAR) * FONT_WIDTH) + indi);
+				// Retreive a single byte of data
+				currentByte = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + ((character - FONT_START_CHAR) * FONT_WIDTH) + indi);
 				for (indj = 0; indj < 8; indj++)
 				{
+					// Figure out which pixels should be on or off
 					if (currentByte & (0x01 << indj))
 					{
+						// Update the character stuct
 						character_info->numPixels++;
-						*(character_info->xLoc + n) = (hd_font_extent_t)indi;
-						*(character_info->yLoc + n) = (hd_font_extent_t)indj;
-						n++;
+						*(character_info->xLoc + pixelLocationArrayIndex) = (hd_font_extent_t)indi;
+						*(character_info->yLoc + pixelLocationArrayIndex) = (hd_font_extent_t)indj;
+						pixelLocationArrayIndex++;
 					}
 				}
 			}
@@ -883,25 +887,28 @@ void        hyperdisplay::show( wind_info_t * wind ){   // Outputs the current w
 		}
 		else
 		{
-			character_info->numPixels = 0;
+			// Figure out the location of the lower half of the characters
 			uint16_t charactersPerBitmapRow = FONT_MAP_WIDTH / FONT_WIDTH;
 			uint16_t characterColumnPositionOnBitmap = (character - FONT_START_CHAR) % charactersPerBitmapRow;
 			uint16_t characterRowPositionOnBitmap = (character - FONT_START_CHAR) / charactersPerBitmapRow;
 			uint16_t characterBitmapStartPosition = (characterRowPositionOnBitmap * FONT_MAP_WIDTH * (FONT_HEIGHT / 8)) + (characterColumnPositionOnBitmap * FONT_WIDTH);
 
+			// Load up the character data and fill in coordinate data one row at a time
 			for (row = 0; row < rowsToDraw; row++)
 			{
 				for (indi = 0; indi < FONT_WIDTH; indi++)
 				{
-					currentByte = pgm_read_byte(fontsPointer[FONT_TYPE] + FILE_HEADER + characterBitmapStartPosition + (row * FONT_MAP_WIDTH) + indi);
+					// Retreive a single byte of data
+					currentByte = pgm_read_byte(fontsPointer[FONT_TYPE] + FONT_HEADER_SIZE + characterBitmapStartPosition + (row * FONT_MAP_WIDTH) + indi);
 					for (indj = 0; indj < 8; indj++)
 					{
 						if (currentByte & (0x01 << indj))
 						{
+							// Update the character stuct
 							character_info->numPixels++;
-							*(character_info->xLoc + n) = (hd_font_extent_t)indi;
-							*(character_info->yLoc + n) = (hd_font_extent_t)(indj + (row * 8));
-							n++;
+							*(character_info->xLoc + pixelLocationArrayIndex) = (hd_font_extent_t)indi;
+							*(character_info->yLoc + pixelLocationArrayIndex) = (hd_font_extent_t)(indj + (row * 8));
+							pixelLocationArrayIndex++;
 						}
 					}
 				}
